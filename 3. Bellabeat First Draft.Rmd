@@ -1,0 +1,448 @@
+---
+title: Bellabeat Case Study
+output: html_notebook
+---
+
+```{css, echo=FALSE}
+h1 {
+  font-size: 32px;
+  color: #FE8F77;
+  text-align: center;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+h2, h3 {
+  color: #FE8F77;
+  text-decoration: underline;
+}
+
+h4 {
+  font-weight: bold;
+}
+```
+
+## Summary
+
+Bellabeat is the go-to wellness brand for women with an ecosystem of products and services focused on women’s health, with various smart device products available to accomplish their goal.
+
+Bellabeat requires data analyzed form non-bellabeat devices to gain insights into how consumers are using their smart devices and to provide high-level recommendations to Bellabeat marketing strategy.
+
+The analysis focuses on user activity level, sleep patterns, hourly calories burned and hourly steps taken. The recommendations would apply to the Bellabeat app and how to encourage users to view the product as a personal health assistant.
+
+
+## Ask
+
+
+#### Business Task
+
+Bellabeat stakeholders are interested in the analysis and application of non-Bellabeat smart device data and how the data can provide insights to the marketing strategy for Bellabeat smart devices
+
+#### Stakeholders
+
+* Urška Sršen - Chief creative officer & co-founder
+* Sando Mur - Mathematician & co-founder
+* Marketing analytics team - A team of data analysts responsible for collecting, analyzing, and reporting data that helps guide Bellabeat’s marketing strategy
+
+
+## Prepare
+
+#### Data Used
+
+The data set used is from Kaggle, [FitBit Fitness Tracker Data](https://www.kaggle.com/arashnic/fitbit) supplied by [Mobius](https://www.kaggle.com/arashnic). The data was collected using a survey with 30 people submitting their data. The data is stored on Google Drive.
+
+#### Privacy & Data Information
+
+Verifying the metadata of our dataset we can confirm it is open-source. The owner has dedicated the work to the public domain by waiving all of his or her rights to the work worldwide under copyright law, including all related and neighboring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission.
+
+There is a sampling bias, even though the minimum required is 30, it will be preferable to have more data available to do a more in depth analysis. The data does not indicate who the demographic is and was only taken over the span of 31 days, from 12 April 2016 to 12 May 2016. 
+
+
+#### Data Verification
+I used the following four datasets provided, to me they seem to have to most intresting and usable data.
+
+**dailyActivity_merged -** The file contains data from 33 users tracked over 31 days. It includes User ID, ActivityDays, total steps, total distance, calories, Tracker Distance, logged activities distance and very/moderately/light/sedentary Active distance & minutes. This data has everything required to do the current analysis. No duplicates or whitespaces were encountered.
+
+**hourlyCalories_merged -** The file contains data from 33 users over 31 days, each logged calories burned at 1 hour intervals. The data includes user ID, Day and hour of the entry and the amount of calories burned in the hour.
+
+**hourlySteps_merged -** The file contains data from 33 users over 31 days. Each logs the amount of steps taken in 1 hour intervals. The data includes user id, date and hour of the entry and the amount of steps within that hour.
+
+**sleepDay_merged -** The file contains data from 24 users over 31 days. It includes user id, sleep day, total Sleep Records, Total minutes asleep and total minutes in bed. The data could prove useful for insights on improving the Bellabeat app. 3 duplicate entries was found and removed, no whitespaces encountered.
+
+## Process
+
+I will focus on using R for the analysis, as it is accessible and will make the analysis of the data sets easier with the amount of data that is being used.
+
+#### Install & load libraries
+
+I will start off by installing & loading the required libraries. The libraries include everything we need to clean, correctly format and create visualizations for our analysis.
+
+```{r}
+install.packages("tidyverse")
+install.packages("janitor")
+install.packages("lubridate")
+```
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(lubridate)
+```
+
+
+#### Import data
+
+Next I import the data we will use for the analysis. I have decided to focus on the daily activity as we need to do a high-level analysis. Daily sleep will help determine if we have any correlation with sleep and activity. I have also decided to analyze the hourly calories & hourly steps and determine if there are any correlations and insights to gain from the data.
+
+```{r}
+daily_activity <- read_csv("dailyActivity_merged.csv")
+daily_sleep <- read_csv("sleepDay_merged.csv")
+hourly_calories <- read_csv("hourlyCalories_merged.csv")
+hourly_steps <- read_csv("hourlySteps_merged.csv")
+```
+
+#### Preview Data
+
+We will preview the imported data and view the structure to check what cleaning needs to be done.
+
+```{r}
+head(daily_activity)
+str(daily_activity)
+
+head(daily_sleep)
+str(daily_sleep)
+
+head(hourly_calories)
+str(hourly_calories)
+
+head(hourly_steps)
+str(hourly_steps)
+```
+
+The data shows we have various columns and they all have the user ID in common. This will be helpful once we analyze the data.
+Next we need to ensure the data is clean and the data integrity is intact. Also The date/time columns are formatted as string and we correct this in the next steps.
+
+#### Data Cleaning & Formatting
+
+Firstly we check that the amount of users is consistent with our observations from viewing the data in Excel.
+
+```{r}
+n_distinct(daily_activity$Id)
+n_distinct(daily_sleep$Id)
+n_distinct(hourly_calories$Id)
+n_distinct(hourly_steps$Id)
+```
+
+All the data has 33 users except for the daily_sleep. Next we will ensure there are no duplicates within the data. We use the sum(duplicated(dataset)) function to ensure there are no TRUE statements returned when running the duplicated function.
+
+```{r}
+sum(duplicated(daily_activity))
+sum(duplicated(daily_sleep))
+sum(duplicated(hourly_steps))
+sum(duplicated(hourly_calories))
+```
+
+With no duplicates detected, daily_sleep had 3 duplicates that I cleaned when viewing the data through Excel, we will run a clean function and change the column headers to fit into the correct syntax of lower case naming convention.
+
+```{r}
+clean_names(daily_activity)
+daily_activity <- rename_with(daily_activity, tolower)
+
+clean_names(daily_sleep)
+daily_sleep <- rename_with(daily_sleep, tolower)
+
+clean_names(hourly_calories)
+hourly_calories <- rename_with(hourly_calories, tolower)
+
+clean_names(hourly_steps)
+hourly_steps <- rename_with(hourly_steps, tolower)
+```
+
+We need to convert the date formats from string to date/time, then check the data to ensure the data has been cleaned.
+
+```{r}
+daily_activity <- daily_activity %>%
+  rename(date = activitydate) %>%
+  mutate(date = as_date(date, format = "%m/%d/%Y"))
+
+daily_sleep <- daily_sleep %>%
+  rename(date = sleepday) %>%
+  mutate(date = as_date(date,format ="%m/%d/%Y %I:%M:%S %p"))
+
+hourly_calories<- hourly_calories %>% 
+  rename(date_time = activityhour) %>% 
+  mutate(date_time = as.POSIXct(date_time,format ="%m/%d/%Y %I:%M:%S %p" , tz=Sys.timezone()))
+
+hourly_steps<- hourly_steps %>% 
+  rename(date_time = activityhour) %>% 
+  mutate(date_time = as.POSIXct(date_time,format ="%m/%d/%Y %I:%M:%S %p" , tz=Sys.timezone()))
+```
+
+
+```{r}
+head(daily_activity)
+head(daily_sleep)
+head(hourly_calories)
+head(hourly_steps)
+```
+
+Finally we will merge daily_activities & daily_sleep to see if there are any correlations. We will do the same merging with hourly_calories & hourly steps. The data will be merged with the id and date fields as their primary keys.
+
+```{r}
+daily_activity_sleep <- merge(daily_activity, daily_sleep, by=c ("id", "date"))
+head(daily_activity_sleep)
+
+hourly_calories_steps <- merge(hourly_calories, hourly_steps, by=c ("id", "date_time"))
+head(hourly_calories_steps)
+```
+
+## Analysis & Sharing
+
+We can take a couple of routes here, so let us start with the daily activity and determine what categories the users fall under with the amount of steps taken or rather what their activity levels are.
+
+### Activity
+
+The following resources from [MedicineNet](https://www.medicinenet.com/how_many_steps_a_day_is_considered_active/article.htm), [10000Steps](https://www.10000steps.org.au/articles/healthy-lifestyles/counting-steps/) and various other sources conclude the following:
+
+* Sedentary is less than 5,000 steps per day 
+* Low active is 5,000 to 7,499 steps per day
+* Somewhat active is 7,500 to 9,999 steps per day
+* Active is more than 10,000 steps per day
+* Highly active is more than 12,500
+
+We only have four activity categories in our data, so we will need to adjust our categories from the information we have. After which we will calculate the average steps per user and group each into their respective activity level.
+
+```{r}
+daily_average_steps <- daily_activity_sleep %>%
+  group_by(id) %>% 
+  summarise(average_daily_steps = mean(totalsteps))
+
+head(daily_average_steps)
+```
+
+We can now categorize each user by activity level.
+
+```{r}
+user_activity <- daily_average_steps %>%
+  mutate(user_activity = case_when(
+    average_daily_steps < 5000 ~ "sedentary",
+    average_daily_steps >= 5000 & average_daily_steps < 7499 ~ "lightly active", 
+    average_daily_steps >= 7500 & average_daily_steps < 9999 ~ "fairly active", 
+    average_daily_steps >= 10000 ~ "very active"
+  ))
+
+head(user_activity)
+```
+
+<!-- The following resources was used to check the function to convert the totals to percentage:https://datacornering.com/calculate-the-percentage-by-a-group-in-r-dplyr/ -->
+
+We will visualize the categorized users as percentages for ease of use in visualization.
+
+```{r}
+user_activity_percent <- user_activity %>%
+  group_by(user_activity) %>%
+  summarise(cnt = n()) %>%
+  mutate(percent_value = formattable::percent(cnt / sum(cnt)))
+
+head(user_activity_percent)
+```
+
+<!-- The resource was used to check how to make a pie chart https://dk81.github.io/dkmathstats_site/rvisual-piecharts.html" -->
+We create the pie chart with user activity and remove any unnecessary grid lines, labels etc.
+
+```{r}
+user_activity_percent %>%
+    ggplot(aes(x="",y=percent_value, fill=user_activity)) +
+    geom_bar(stat = "identity", width = 1)+
+    coord_polar("y", start=0)+
+    theme_minimal()+
+    theme(axis.title.x= element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(), 
+          panel.grid = element_blank(), 
+          axis.ticks = element_blank(),
+          axis.text.x = element_blank(),
+          plot.title = element_text(hjust = 0.5, size=14, face = "bold")) +
+    scale_fill_manual(values = c("#C6D68F","#9BBFE0","#FBE29F","#E8A09A")) +
+    geom_text(aes(label = percent_value),
+              position = position_stack(vjust = 0.5))+
+    labs(title="User Activity Distribution")
+```
+
+With the data visualized we can see that all types of people use smart devices to track their activity. We can notice that most people are fairly active and can conclude that marketing can focus on getting sedentary & lightly active users more initiative to be more active where as fairly active and very active users could be rewarded more.
+
+### Sleep
+
+Next we will focus on sleep patterns and how user activity could influence sleep. I will start off by categorizing users based on sleep minute totals and how they can be defined according to the following articles:
+
+* [health.org](https://health.gov/myhealthfinder/healthy-living/mental-health-and-relationships/get-enough-sleep)
+* [everydayhealth.com](https://www.everydayhealth.com/sleep/101/how-much-sleep-do-you-need.aspx)
+* [healthline.com](https://www.healthline.com/nutrition/how-much-sleep-you-need#TOC_TITLE_HDR_4)
+
+As per the articles, and taking into account the 24 users who provided the data are adults, between 7 & 9 hours (420 minutes & 540 minutes) of sleep is recommended for good sleep. The [National Sleep Foundation](https://www.thensf.org/what-is-sleep-quality/) recommends 450 minutes of sleep average for a good nights rest.
+
+I will start off by creating a data frame with the users categorized with their sleep averages. We can use the user activity created previously to check the correlation between good sleep and activity level.
+
+```{r}
+daily_average_sleep <- daily_activity_sleep %>%
+  group_by(id) %>% 
+  summarise(average_daily_sleep = mean(totalminutesasleep))
+
+head(daily_average_sleep)
+```
+
+With the average sleep calculated per user, we can categorize the user as per their average sleep times.
+
+```{r}
+user_sleep_activity <- daily_average_sleep %>%
+  mutate(user_sleep = case_when(
+    average_daily_sleep < 420 ~ "Bad Sleeper",
+    average_daily_sleep >= 420 & average_daily_sleep <= 480 ~ "Good Sleeper", 
+    average_daily_sleep > 480 ~ "Over Sleeper", 
+  ))
+
+head(user_sleep_activity)
+```
+
+Next we create a table to display percentages of the users to better visualize the data.
+
+```{r}
+user_sleep_percent <- user_sleep_activity %>%
+  group_by(user_sleep) %>%
+  summarise(cnt = n()) %>%
+  mutate(percent_value = formattable::percent(cnt / sum(cnt)))
+
+head(user_sleep_percent)
+```
+
+```{r}
+user_sleep_percent %>%
+    ggplot(aes(x="",y=percent_value, fill=user_sleep)) +
+    geom_bar(stat = "identity", width = 1)+
+    coord_polar("y", start=0)+
+    theme_minimal()+
+    theme(axis.title.x= element_blank(),
+          axis.title.y = element_blank(),
+          panel.border = element_blank(), 
+          panel.grid = element_blank(), 
+          axis.ticks = element_blank(),
+          axis.text.x = element_blank(),
+          plot.title = element_text(hjust = 0.5, size=14, face = "bold")) +
+    scale_fill_manual(values = c("#E8A09A", "#C6D68F", "#9BBFE0")) +
+    geom_text(aes(label = percent_value),
+              position = position_stack(vjust = 0.5))+
+    labs(title="User Sleep Distribution")
+```
+
+As we can notice it seems that most people have bad sleeping patterns. Let us merge the sleep and activity data together and investigate if there is a correlation between sleep and activity.
+
+```{r}
+user_activity_sleep <- merge(user_activity, user_sleep_activity, by=c ("id"))
+head(user_activity_sleep)
+```
+
+```{r}
+ggplot(user_activity_sleep, aes(x=average_daily_sleep, y=average_daily_steps, group=user_sleep)) + 
+  geom_point(aes(shape=user_sleep, color=user_sleep)) + 
+  labs(title = "Average Daily Sleep vs Average Daily Steps", x = "Average Sleep", y= "Average Steps")
+```
+
+The plot shows us there is some correlation between sleep and daily activity as the good sleepers have an average steps of around 7500 to 10 000, and the over sleepers have 5000 or less steps. The bad sleepers seem to be the only group that have no explicit correlation. 
+
+This could be due to insufficient data as the dataset only includes 24 users and some did not complete all the data entries each day. It would be recommended more data be collected with regards to sleep to be able to do a complete analysis for correlation between a good night rest and daily activity.
+
+See the following articles to understand the relationship between sleep and activity, and how more data would be able to help with making better recommendations.
+
+* [Sleep Foundation - Exercise and Sleep](https://www.sleepfoundation.org/physical-activity/exercise-and-sleep#:~:text=Exercising%20also%20improves%20sleep%20for,in%20bed%20during%20the%20night.)
+* [National Libray of Medicine - The Subjective Meaning of Sleep Quality: A Comparison of Individuals with and without Insomnia](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2276747/)
+
+### Steps & Calories
+
+Finally we will look at the hourly steps and hourly calories data to determine if there are any correlations and what insights we can gain from the two.
+
+First we will need to split the date and time from our hourly_calories_steps data frame.
+
+```{r}
+hourly_calories_steps <- hourly_calories_steps %>%
+  separate(date_time, into = c("date", "time"), sep= " ") %>%
+  mutate(date = ymd(date)) 
+  
+head(hourly_calories_steps)
+```
+
+Now we visualize the calories per hour and steps per hour
+
+```{r}
+hourly_calories_steps %>%
+    group_by(time) %>%
+    summarize(average_calories = mean(calories)) %>%
+    ggplot() +
+    geom_col(mapping = aes(x=time, y = average_calories, fill = average_calories)) + 
+    labs(title = "Hourly Calories", x="", y="") + 
+    scale_fill_gradient(low = "#FFD9DA", high = "#B9023E")+
+    theme(axis.text.x = element_text(angle = 90))
+hourly_calories_steps %>% 
+    group_by(time) %>%
+    summarize(average_steps = mean(steptotal)) %>%
+    ggplot() +
+    geom_col(mapping = aes(x=time, y = average_steps, fill = average_steps)) + 
+    labs(title = "Hourly Steps", x="", y="") + 
+    scale_fill_gradient(low = "#FFD9DA", high = "#B9023E")+
+    theme(axis.text.x = element_text(angle = 90))
+```
+
+We now have a clear indication that users burn more calories and take more steps between 12:00 and 14:00 in the afternoon then again between 17:00 and 19:00 in the evenings. We can now create a plot to display this correlation more effectively.
+
+```{r}
+hourly_calories_steps %>%
+    group_by(date, time) %>%
+    summarize(average_calories = mean(calories), average_steps = mean(steptotal)) %>% 
+    ggplot(aes(x=average_calories, y=average_steps)) + 
+    geom_point() +
+    geom_smooth(formula = y ~ x, method = 'loess', color="green") +
+    labs(title = "Hourly Clories & Hourly Steps by Date", x = "Average Calories", y= "Average Steps")
+```
+
+The plot uses grouping by date, so it will plot each date with its respective 24 hours with the average calories & average steps. We can clearly and quite obviously see that the more steps are taken, the more calories are burned.
+
+## Recommendations (Act)
+
+
+The recommendations provided was done with a small sample size and the lacked any demographic information. 
+
+That said the goal of the analysis is to provide Bellabeat marketing team insights, so as to improve and reach more users with the marketing strategy.
+
+The main group to focus on are women, and with this in mind, some research into exercise, diet and menstrual cycle could provide some insight into where more data can help with a better understanding for the needs of the demographic.
+I found the following pages helpful in this research and more research should be done to improve aspects of the Bellabeat app.
+
+* [Cycle Syncing: Matching Your Health Style to Your Menstrual Cycle](https://www.healthline.com/health/womens-health/guide-to-cycle-syncing-how-to-start)
+* [How (and Why) to Cycle Your Exercise with Your Menstrual Cycle](https://www.healthline.com/health/fitness/female-hormones-exercise)
+
+### User Activity
+
+The analysis provided data on how active the smart device users are. With most users being fairly active followed by very active. 
+
+A recommendation would be to introduce a challenge and reward system on the Bellabeat app. The challenges could be anything from personal weight goals to challenging friends or other Bellabeat users. A simple discount reward system can be tested and built upon to encourage users to be more active and reach a average of [10 000 steps per day](https://www.healthline.com/health/how-many-steps-a-day).
+
+### Calories & Steps
+
+Tying in with the above recommendation, the analysis provided insight with user activity at certain times of a day.
+Users seem to be full-time workers with lunch breaks and evenings providing the most activity.
+
+The Bellabeat app could encourage users who are less active at these times to stand and take a quick walk around the block. With the above mentioned challenge system, the Bellabeat app could challenge users to reach their daily goals and encourage them to be more active during these times. This could also tie in with the amount of calories consumed and provide dietary recommendations to users.
+
+Marketing could encourage users to try out the challenges with some discount to the Bellabeat memberships for reaching certain goals or challenges.
+
+### User Sleep
+
+The data available was only 24 user, but we could gain some insights.
+
+A recommendation would be to introduce a system on the Bellabeat app, where the users could input their daily activity with regards to screen time, social activities & family obligations. Some research provided a good starting point at [Healthline.com](https://www.healthline.com/health/sleep/sleep-calculator#sleep-calculator). It provides some excellent ideas to include in this system and possibly how to build it.
+
+The new feature can be marketed as a complete sleep tracker that will help with managing user weight and exercise.
+
+<!-- I want to thank the following users for their notebooks on Kaggle, they were very informative and helped me to understand more or less how to go through the process.
+[MACARENA LACASA](https://www.kaggle.com/code/macarenalacasa/capstone-case-study-bellabeat/notebook#-5.-Analyze-Phase-and-Share-Phase--)
+[JULEN ARANGUREN](https://www.kaggle.com/code/julenaranguren/bellabeat-case-study/notebook#PHASE-1-:-ASK)
+[ANASTASIIA CHEBOTINA](https://www.kaggle.com/code/chebotinaa/bellabeat-case-study-with-r/notebook#About-a-company) -->
